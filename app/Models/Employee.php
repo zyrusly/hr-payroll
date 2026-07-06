@@ -65,6 +65,16 @@ class Employee extends Model
         return $this->hasMany(AttendanceLog::class);
     }
 
+    public function branchHistories(): HasMany
+    {
+        return $this->hasMany(BranchHistory::class);
+    }
+
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(Schedule::class);
+    }
+
     public function payrollItems(): HasMany
     {
         return $this->hasMany(PayrollItem::class);

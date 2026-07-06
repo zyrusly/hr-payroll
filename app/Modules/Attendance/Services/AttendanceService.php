@@ -22,23 +22,50 @@ class AttendanceService
         $entryType = (string) $payload['entry_type'];
         $entryTime = (string) $payload['entry_time'];
         $entryAt = $this->parseEntryDateTime($attendanceDate, $entryTime);
-        $checkInAt = $entryType === 'checkin' ? $entryAt : null;
-        $checkOutAt = $entryType === 'checkout' ? $entryAt : null;
         $source = substr($sourcePrefix . '-' . $entryType, 0, 40);
 
-        return DB::transaction(function () use ($employeeId, $attendanceDate, $checkInAt, $checkOutAt, $source, $payload, $approvedBy): AttendanceLog {
-            return $this->attendanceRepository->create([
-                'employee_id' => $employeeId,
-                'attendance_date' => $attendanceDate,
-                'check_in_at' => $checkInAt,
-                'check_out_at' => $checkOutAt,
-                'worked_minutes' => 0,
-                'status' => 'present',
-                'source' => $source,
-                'remarks' => $payload['remarks'] ?? null,
-                'approved_by' => $approvedBy,
-                'approved_at' => $approvedBy ? now() : null,
-            ]);
+        return DB::transaction(function () use ($employeeId, $attendanceDate, $entryType, $entryAt, $source, $payload, $approvedBy): AttendanceLog {
+            $log = AttendanceLog::query()
+                ->where('employee_id', $employeeId)
+                ->whereDate('attendance_date', $attendanceDate)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $log) {
+                $log = new AttendanceLog([
+                    'employee_id' => $employeeId,
+                    'attendance_date' => $attendanceDate,
+                    'worked_minutes' => 0,
+                    'status' => 'present',
+                    'source' => $source,
+                ]);
+            }
+
+            if ($entryType === 'checkin' && (! $log->check_in_at || $entryAt->lt($log->check_in_at))) {
+                $log->check_in_at = $entryAt;
+            }
+
+            if ($entryType === 'checkout' && (! $log->check_out_at || $entryAt->gt($log->check_out_at))) {
+                $log->check_out_at = $entryAt;
+            }
+
+            if (! empty($payload['remarks'])) {
+                $log->remarks = $log->remarks
+                    ? trim($log->remarks . ' | ' . $payload['remarks'])
+                    : $payload['remarks'];
+            }
+
+            $log->source = $source;
+            $log->approved_by = $approvedBy;
+            $log->approved_at = $approvedBy ? now() : null;
+
+            if ($log->check_in_at && $log->check_out_at) {
+                $log->worked_minutes = max(0, $log->check_in_at->diffInMinutes($log->check_out_at, false));
+            }
+
+            $log->save();
+
+            return $log;
         });
     }
 

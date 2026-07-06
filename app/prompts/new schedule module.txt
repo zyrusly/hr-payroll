@@ -1,0 +1,10 @@
+Schedules Module
+- Schedule Controller
+- Schedule Requests
+- Schedule Repository
+- Schedule services
+
+Schedule Controller create a CRUD method
+
+on creating a schedule view/form i want a employee dropdown with search function on it, I also want to have a multiple select on the employee dropdown, to be able to create multiple schedules for different employees with the same schedules. I also want a branch dropdown., also based on the week number that is input, show the date range of that week. 
+the s_monday to s_sunday the input is time. 

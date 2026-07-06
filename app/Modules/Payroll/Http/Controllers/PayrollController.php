@@ -47,7 +47,7 @@ class PayrollController extends Controller
         }
 
         $validated = $request->validate([
-            'pay_frequency' => ['required', Rule::in(['weekly', 'monthly'])],
+            'pay_frequency' => ['required', Rule::in(['weekly', 'monthly','semimonthly'])],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'period_label' => ['nullable', 'string', 'max:100'],
             'period_start' => ['required', 'date'],
@@ -121,6 +121,17 @@ class PayrollController extends Controller
         ]);
 
         return view('hr.payroll.runs.item', ['item' => $item]);
+    }
+
+    public function destroyRun(PayrollRun $run): RedirectResponse
+    {
+        try {
+        $run->delete();
+        } catch (RuntimeException $exception) {
+          return back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('payroll.runs.index')->with('success', __('Payroll deleted successfully.'));
     }
 
     public function markItemPaid(Request $request, PayrollItem $item): RedirectResponse
@@ -201,7 +212,7 @@ class PayrollController extends Controller
         $validated = $request->validate([
             'employee_id' => ['required', 'integer', 'exists:employees,id'],
             'salary_template_id' => ['required', 'integer', 'exists:salary_templates,id'],
-            'pay_frequency' => ['nullable', Rule::in(['weekly', 'monthly'])],
+            'pay_frequency' => ['nullable', Rule::in(['weekly', 'monthly','semimonthly'])],
             'basic_salary' => ['required', 'numeric', 'min:0'],
             'house_rent' => ['nullable', 'numeric', 'min:0'],
             'medical_allowance' => ['nullable', 'numeric', 'min:0'],
@@ -547,7 +558,7 @@ class PayrollController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique(SalaryTemplate::class, 'name')->ignore($template?->id)],
             'code' => ['required', 'string', 'max:30', Rule::unique(SalaryTemplate::class, 'code')->ignore($template?->id)],
-            'pay_frequency' => ['required', Rule::in(['weekly', 'monthly'])],
+            'pay_frequency' => ['required', Rule::in(['weekly', 'monthly','semimonthly'])],
             'basic_salary' => ['required', 'numeric', 'min:0'],
             'house_rent' => ['nullable', 'numeric', 'min:0'],
             'medical_allowance' => ['nullable', 'numeric', 'min:0'],

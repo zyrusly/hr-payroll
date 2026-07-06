@@ -4,6 +4,7 @@ namespace App\Modules\Attendance\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceApiClient;
+use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Attendance\Http\Requests\ImportAttendanceRequest;
@@ -210,6 +211,13 @@ class AttendanceController extends Controller
         return response()->streamDownload($callback, $fileName, $headers);
     }
 
+    /**
+     * Import attendance entries from a CSV file.
+     *
+     * The CSV must include attendance_date, entry_type, and entry_time. Admin-like users
+     * can import for employees by employee_id or employee_code; scoped users import only
+     * for their own linked employee profile.
+     */
     public function importCsv(ImportAttendanceRequest $request): RedirectResponse
     {
         /** @var User $user */
@@ -223,27 +231,36 @@ class AttendanceController extends Controller
             return back()->withErrors(['attendance_file' => 'Uploaded file is invalid.'])->withInput();
         }
 
+        $delimiter = $this->detectCsvDelimiter((string) $file->getRealPath());
         $handle = fopen((string) $file->getRealPath(), 'r');
         if ($handle === false) {
             return back()->withErrors(['attendance_file' => 'Unable to read uploaded file.'])->withInput();
         }
 
-        $header = fgetcsv($handle);
+        // Read and normalize the header so columns can be matched regardless of case or whitespace.
+        $header = fgetcsv($handle, 0, $delimiter);
         if (! is_array($header)) {
             fclose($handle);
             return back()->withErrors(['attendance_file' => 'CSV header is missing.'])->withInput();
         }
 
-        $columns = array_map(fn ($value) => strtolower(trim((string) $value)), $header);
+        $columns = array_map(fn ($value) => $this->normalizeCsvHeader((string) $value), $header);
         $map = array_flip($columns);
-        $requiredColumns = ['attendance_date', 'entry_type', 'entry_time'];
+        $isDeviceFormat = array_key_exists('ac_no', $map)
+            && array_key_exists('time', $map)
+            && array_key_exists('state', $map);
+        $requiredColumns = $isDeviceFormat
+            ? ['ac_no', 'time', 'state']
+            : ['attendance_date', 'entry_type', 'entry_time'];
+
         foreach ($requiredColumns as $column) {
             if (! array_key_exists($column, $map)) {
                 fclose($handle);
-                return back()->withErrors(['attendance_file' => "Missing required column: {$column}."])->withInput();
+                return back()->withErrors(['attendance_file' => 'Missing required column: ' . $this->displayCsvColumn($column) . '.'])->withInput();
             }
         }
 
+        // Build a lookup for imports that identify employees by code instead of numeric id.
         $employeeCodeMap = Employee::query()
             ->select(['id', 'employee_code'])
             ->get()
@@ -254,34 +271,51 @@ class AttendanceController extends Controller
         $imported = 0;
         $skipped = 0;
         $line = 1;
+        $dataRows = 0;
         $errors = [];
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             $line++;
             if (! is_array($row)) {
                 $skipped++;
                 continue;
             }
+            $dataRows++;
 
-            $attendanceDate = trim((string) ($row[$map['attendance_date']] ?? ''));
-            $entryTypeRaw = trim((string) ($row[$map['entry_type']] ?? ''));
-            $entryTime = trim((string) ($row[$map['entry_time']] ?? ''));
-            $remarks = trim((string) ($map['remarks'] ?? null) !== null ? ($row[$map['remarks']] ?? '') : '');
-            $employeeCode = trim((string) (($map['employee_code'] ?? null) !== null ? ($row[$map['employee_code']] ?? '') : ''));
-            $employeeIdRaw = trim((string) (($map['employee_id'] ?? null) !== null ? ($row[$map['employee_id']] ?? '') : ''));
+            if ($isDeviceFormat) {
+                $parsedTime = $this->splitDeviceDateTime(trim((string) ($row[$map['time']] ?? '')));
+                $attendanceDate = $parsedTime['attendance_date'];
+                $entryTime = $parsedTime['entry_time'];
+                $entryTypeRaw = trim((string) ($row[$map['state']] ?? ''));
+                $remarks = trim((string) (($map['remarks'] ?? null) !== null ? ($row[$map['remarks']] ?? '') : ''));
+                $employeeCode = trim((string) ($row[$map['ac_no']] ?? ''));
+                $employeeIdRaw = '';
+            } else {
+                $attendanceDate = trim((string) ($row[$map['attendance_date']] ?? ''));
+                $entryTypeRaw = trim((string) ($row[$map['entry_type']] ?? ''));
+                $entryTime = trim((string) ($row[$map['entry_time']] ?? ''));
+                $remarks = trim((string) (($map['remarks'] ?? null) !== null ? ($row[$map['remarks']] ?? '') : ''));
+                $employeeCode = trim((string) (($map['employee_code'] ?? null) !== null ? ($row[$map['employee_code']] ?? '') : ''));
+                $employeeIdRaw = trim((string) (($map['employee_id'] ?? null) !== null ? ($row[$map['employee_id']] ?? '') : ''));
+            }
             $entryType = $this->normalizeEntryType($entryTypeRaw);
 
+            // Admin/scoped managers may target employees from the file; regular users are locked to themselves.
             $employeeId = 0;
             if ($hasAllAccess) {
                 if ($employeeIdRaw !== '' && ctype_digit($employeeIdRaw)) {
                     $employeeId = (int) $employeeIdRaw;
                 } elseif ($employeeCode !== '') {
                     $employeeId = (int) ($employeeCodeMap[strtolower($employeeCode)] ?? 0);
+                    if ($employeeId <= 0 && $isDeviceFormat && ctype_digit($employeeCode)) {
+                        $employeeId = (int) $employeeCode;
+                    }
                 }
             } else {
                 $employeeId = $currentEmployeeId;
             }
 
+            // Validate each row independently so one bad row does not stop the whole import.
             $validator = Validator::make([
                 'employee_id' => $employeeId,
                 'attendance_date' => $attendanceDate,
@@ -310,9 +344,16 @@ class AttendanceController extends Controller
                 continue;
             }
 
+            // Enforce employee scope after resolving employee_id from either id, code, or the current user.
             if ($scopedEmployeeIds !== null && ! in_array($employeeId, $scopedEmployeeIds, true)) {
                 $skipped++;
                 $errors[] = "Line {$line}: You are not allowed to import data for employee_id {$employeeId}.";
+                continue;
+            }
+
+            if ($this->attendanceEntryExists($employeeId, $attendanceDate, $entryType, $entryTime)) {
+                $skipped++;
+                $errors[] = "Line {$line}: Duplicate attendance entry.";
                 continue;
             }
 
@@ -327,6 +368,13 @@ class AttendanceController extends Controller
 
         fclose($handle);
 
+        if ($dataRows === 0) {
+            return back()
+                ->withErrors(['attendance_file' => 'CSV file has no attendance rows to import.'])
+                ->withInput();
+        }
+
+        // If nothing made it through validation, return the first few row errors to the upload form.
         if ($skipped > 0 && $imported === 0) {
             return back()
                 ->withErrors(['attendance_file' => 'No rows imported. ' . implode(' | ', array_slice($errors, 0, 3))])
@@ -410,11 +458,11 @@ class AttendanceController extends Controller
     private function normalizeEntryType(string $value): string
     {
         $normalized = strtolower(trim($value));
-        if (in_array($normalized, ['checkin', 'check-in', 'in'], true)) {
+        if (in_array($normalized, ['checkin', 'check-in', 'in', 'c/in'], true)) {
             return 'checkin';
         }
 
-        if (in_array($normalized, ['checkout', 'check-out', 'out'], true)) {
+        if (in_array($normalized, ['checkout', 'check-out', 'out', 'c/out'], true)) {
             return 'checkout';
         }
 
@@ -436,5 +484,119 @@ class AttendanceController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * @return array{attendance_date: string, entry_time: string}
+     */
+    private function splitDeviceDateTime(string $value): array
+    {
+        $formats = [
+            'm/d/Y g:i A',
+            'm/d/Y h:i A',
+            'n/j/Y g:i A',
+            'n/j/Y h:i A',
+            'Y-m-d H:i',
+            'Y-m-d h:i A',
+            'Y-m-d h:i a',
+        ];
+
+        foreach ($formats as $format) {
+            try {
+                $dateTime = Carbon::createFromFormat($format, $value);
+
+                return [
+                    'attendance_date' => $dateTime->format('Y-m-d'),
+                    'entry_time' => $dateTime->format('h:i A'),
+                ];
+            } catch (\Throwable) {
+                // try next format
+            }
+        }
+
+        try {
+            $dateTime = Carbon::parse($value);
+
+            return [
+                'attendance_date' => $dateTime->format('Y-m-d'),
+                'entry_time' => $dateTime->format('h:i A'),
+            ];
+        } catch (\Throwable) {
+            return [
+                'attendance_date' => '',
+                'entry_time' => '',
+            ];
+        }
+    }
+
+    private function attendanceEntryExists(int $employeeId, string $attendanceDate, string $entryType, string $entryTime): bool
+    {
+        $entryAt = $this->parseEntryDateTime($attendanceDate, $entryTime);
+        $timestampColumn = $entryType === 'checkin' ? 'check_in_at' : 'check_out_at';
+
+        return AttendanceLog::query()
+            ->where('employee_id', $employeeId)
+            ->whereDate('attendance_date', $attendanceDate)
+            ->where($timestampColumn, $entryAt->format('Y-m-d H:i:s'))
+            ->exists();
+    }
+
+    private function parseEntryDateTime(string $attendanceDate, string $entryTime): Carbon
+    {
+        $formats = ['Y-m-d H:i', 'Y-m-d h:i A', 'Y-m-d h:i a'];
+        $value = $attendanceDate . ' ' . trim($entryTime);
+
+        foreach ($formats as $format) {
+            try {
+                return Carbon::createFromFormat($format, $value);
+            } catch (\Throwable) {
+                // try next format
+            }
+        }
+
+        return Carbon::parse($value);
+    }
+
+    private function stripUtf8Bom(string $value): string
+    {
+        return preg_replace('/^\xEF\xBB\xBF/', '', $value) ?? $value;
+    }
+
+    private function normalizeCsvHeader(string $value): string
+    {
+        $header = strtolower(trim($this->stripUtf8Bom($value)));
+        $header = str_replace(['.', '-', ' '], '_', $header);
+
+        return trim(preg_replace('/_+/', '_', $header) ?? $header, '_');
+    }
+
+    private function displayCsvColumn(string $column): string
+    {
+        return match ($column) {
+            'ac_no' => 'AC-No.',
+            'time' => 'Time',
+            'state' => 'State',
+            default => $column,
+        };
+    }
+
+    private function detectCsvDelimiter(string $path): string
+    {
+        $line = '';
+        $handle = fopen($path, 'r');
+        if ($handle !== false) {
+            $line = (string) fgets($handle);
+            fclose($handle);
+        }
+
+        $delimiters = [
+            "\t" => substr_count($line, "\t"),
+            ',' => substr_count($line, ','),
+            ';' => substr_count($line, ';'),
+        ];
+
+        arsort($delimiters);
+
+        return (string) array_key_first($delimiters);
     }
 }

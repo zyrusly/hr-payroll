@@ -224,6 +224,40 @@
                 </li>
                 @endif
 
+                @if($s['canBranchMenu'] ?? false)
+                    <li id="menu-branch" data-id="menu-branch" class="main {{ ($s['isBranch'] ?? false) ? 'active' : '' }}">
+                        <a class="has-arrow" href="#" aria-expanded="{{ ($s['isBranch'] ?? false) ? 'true' : 'false' }}">
+                            <i class="icon-location-pin"></i>
+                            <span>{{ __('Branches') }}</span>
+                        </a>
+                        <ul aria-expanded="{{ ($s['isBranch'] ?? false) ? 'true' : 'false' }}">
+                            @if($s['canBranchView'] ?? false)
+                                <li class="{{ request()->routeIs('branch.index') || request()->routeIs('branch.edit') ? 'active' : '' }}"><a href="{{ route('branch.index') }}">{{ __('Branch List') }}</a></li>
+                            @endif
+                            @if($s['canBranchCreate'] ?? false)
+                                <li class="{{ request()->routeIs('branch.create') ? 'active' : '' }}"><a href="{{ route('branch.create') }}">{{ __('Add Branch') }}</a></li>
+                            @endif
+                        </ul>
+                    </li>
+                @endif
+
+                @if($s['canScheduleMenu'] ?? false)
+                    <li id="menu-schedule" data-id="menu-schedule" class="main {{ ($s['isSchedule'] ?? false) ? 'active' : '' }}">
+                        <a class="has-arrow" href="#" aria-expanded="{{ ($s['isSchedule'] ?? false) ? 'true' : 'false' }}">
+                            <i class="icon-calendar"></i>
+                            <span>{{ __('Schedules') }}</span>
+                        </a>
+                        <ul aria-expanded="{{ ($s['isSchedule'] ?? false) ? 'true' : 'false' }}">
+                            @if($s['canScheduleView'] ?? false)
+                                <li class="{{ request()->routeIs('schedule.index') || request()->routeIs('schedule.edit') ? 'active' : '' }}"><a href="{{ route('schedule.index') }}">{{ __('Schedule List') }}</a></li>
+                            @endif
+                            @if($s['canScheduleCreate'] ?? false)
+                                <li class="{{ request()->routeIs('schedule.create') ? 'active' : '' }}"><a href="{{ route('schedule.create') }}">{{ __('Add Schedule') }}</a></li>
+                            @endif
+                        </ul>
+                    </li>
+                @endif
+
                 @if($s['canUserManagementMenu'] ?? false)
                     <li id="menu-user-management" data-id="menu-user-management" class="main {{ ($s['isUserManagement'] ?? false) ? 'active' : '' }}">
                         <a class="has-arrow" href="#" aria-expanded="{{ ($s['isUserManagement'] ?? false) ? 'true' : 'false' }}">
