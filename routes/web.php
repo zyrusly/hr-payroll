@@ -19,8 +19,6 @@ use App\Modules\Leaves\Http\Controllers\LeaveApplicationController;
 use App\Modules\Leaves\Http\Controllers\LeaveBalanceController;
 use App\Modules\Leaves\Http\Controllers\LeaveCategoryController;
 use App\Modules\Leaves\Http\Controllers\LeavePolicyController;
-use App\Modules\Location\Http\Controllers\BranchController;
-use App\Modules\Location\Http\Controllers\ScheduleController;
 use App\Modules\Payroll\Http\Controllers\PayrollController;
 use App\Modules\Projects\Http\Controllers\ProjectController;
 use App\Modules\SalaryGrades\Http\Controllers\SalaryGradeController;
@@ -200,7 +198,6 @@ Route::middleware(['auth', 'portal.access'])->group(function (): void {
         Route::get('/runs', [PayrollController::class, 'index'])->middleware('permission:payroll.view,payroll.generate,payroll_run.view,payroll_run.generate')->name('runs.index');
         Route::post('/runs', [PayrollController::class, 'generate'])->middleware('permission:payroll.generate,payroll_run.generate')->name('runs.generate');
         Route::get('/runs/{run}', [PayrollController::class, 'showRun'])->middleware('permission:payroll.view,payroll.generate,payroll_run.view')->name('runs.show');
-        Route::delete('/{run}', [PayrollController::class, 'destroyRun'])->middleware('permission:payroll_run.delete,payroll.generate,payroll_run.view')->name('runs.destroy');
         Route::post('/runs/{run}/finalize', [PayrollController::class, 'finalizeRun'])->middleware('permission:payroll.generate,payroll_run.approve')->name('runs.finalize');
         Route::get('/items/{item}', [PayrollController::class, 'showItem'])->middleware('permission:payroll.view,payroll.report,payslip.view')->name('items.show');
         Route::patch('/items/{item}/paid', [PayrollController::class, 'markItemPaid'])->middleware('permission:payroll.generate,payroll_run.mark-paid')->name('items.paid');
@@ -303,24 +300,6 @@ Route::middleware(['auth', 'portal.access'])->group(function (): void {
             Route::post('/sync', [LeaveBalanceController::class, 'sync'])->middleware('permission:leave.manage-balances,leave.manage-quotas')->name('sync');
             Route::get('/{leaveBalance}/edit', [LeaveBalanceController::class, 'edit'])->middleware('permission:leave.manage-balances,leave.manage-quotas')->name('edit');
             Route::put('/{leaveBalance}', [LeaveBalanceController::class, 'update'])->middleware('permission:leave.manage-balances,leave.manage-quotas')->name('update');
-        });
-
-        Route::prefix('branch')->name('branch.')->group(function (): void {
-            Route::get('/', [BranchController::class, 'index'])->middleware('permission:branch.view')->name('index');
-            Route::get('/create', [BranchController::class, 'create'])->middleware('permission:branch.create')->name('create');
-            Route::post('/', [BranchController::class, 'store'])->middleware('permission:branch.create')->name('store');
-            Route::get('/{branch}/edit', [BranchController::class, 'edit'])->middleware('permission:branch.update')->name('edit');
-            Route::put('/{branch}', [BranchController::class, 'update'])->middleware('permission:branch.update')->name('update');
-            Route::delete('/{branch}', [BranchController::class, 'destroy'])->middleware('permission:branch.delete')->name('destroy');
-        });
-
-        Route::prefix('schedule')->name('schedule.')->group(function (): void {
-            Route::get('/', [ScheduleController::class, 'index'])->middleware('permission:schedule.view')->name('index');
-            Route::get('/create', [ScheduleController::class, 'create'])->middleware('permission:schedule.create')->name('create');
-            Route::post('/', [ScheduleController::class, 'store'])->middleware('permission:schedule.create')->name('store');
-            Route::get('/{schedule}/edit', [ScheduleController::class, 'edit'])->middleware('permission:schedule.update')->name('edit');
-            Route::put('/{schedule}', [ScheduleController::class, 'update'])->middleware('permission:schedule.update')->name('update');
-            Route::delete('/{schedule}', [ScheduleController::class, 'destroy'])->middleware('permission:schedule.delete')->name('destroy');
         });
 
         Route::prefix('users')->name('users.')->group(function (): void {

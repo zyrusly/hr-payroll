@@ -12,7 +12,7 @@
                         <h5 class="table_banner_title mb-2">{{ __('Generate Payroll Draft') }}</h5>
                         <form method="POST" action="{{ route('payroll.runs.generate') }}" class="row g-2 mb-4">
                             @csrf
-                            <div class="col-md-2"><select name="pay_frequency" class="form-control" required><option value="monthly">{{ __('Monthly') }}</option><option value="weekly">{{ __('Weekly') }}</option><option value="semimonthly">{{ __('Semi-Monthly') }}</option></select></div>
+                            <div class="col-md-2"><select name="pay_frequency" class="form-control" required><option value="monthly">{{ __('Monthly') }}</option><option value="weekly">{{ __('Weekly') }}</option></select></div>
                             <div class="col-md-3"><select name="employee_id" class="form-control js-example-basic-single"><option value="0">{{ __('All Active Employees') }}</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ trim($employee->first_name.' '.$employee->last_name) }} ({{ $employee->employee_code }})</option>@endforeach</select></div>
                             <div class="col-md-2"><input type="text" name="period_label" class="form-control" value="{{ now()->format('M Y') }}" placeholder="{{ __('Period label') }}"></div>
                             <div class="col-md-2"><input type="text" name="period_start" class="form-control datetimepicker" value="{{ now()->startOfMonth()->toDateString() }}" required></div>
@@ -43,16 +43,7 @@
                                         <td>{{ number_format((float)$run->net_total, 2) }}</td>
                                         <td><span class="badge bg-secondary">{{ __(ucfirst($run->status)) }}</span></td>
                                         <td>{{ $run->processor?->name ?: '-' }}</td>
-                                        <td class="action-buttons"><a href="{{ route('payroll.runs.show', $run) }}" title="{{ __('View') }}"><i class="icon-eye"></i></a>
-
-                                             @if(auth()->user()?->hasPermission('payroll_run.delete'))
-                                                <form method="POST" action="{{ route('payroll.runs.destroy', $run) }}" onsubmit="return confirm('Delete this  payroll run?');" class="d-inline">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" title="{{ __('Delete payroll run') }}"><i class="icon-trash"></i></button>
-                                                </form>
-                                            @endif
-                                            </td>
+                                        <td class="action-buttons"><a href="{{ route('payroll.runs.show', $run) }}" title="{{ __('View') }}"><i class="icon-eye"></i></a></td>
                                     </tr>
                                 @empty
                                     <tr><td colspan="9" class="text-center">{{ __('No payroll runs found.') }}</td></tr>
