@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Schedule extends Model
 {
@@ -16,6 +17,7 @@ class Schedule extends Model
     {
         return [
             'week_number' => 'integer',
+            'year' => 'integer',
         ];
     }
 
@@ -26,6 +28,16 @@ class Schedule extends Model
 
     public function branch(): BelongsTo
     {
-        return $this->belongsTo(Branch::class);
+        return $this->belongsTo(Branch::class, 'default_branch_id');
+    }
+
+    public function defaultBranch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class, 'default_branch_id');
+    }
+
+    public function days(): HasMany
+    {
+        return $this->hasMany(ScheduleDay::class)->orderBy('work_date');
     }
 }

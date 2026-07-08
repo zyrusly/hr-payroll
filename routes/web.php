@@ -20,10 +20,10 @@ use App\Modules\Leaves\Http\Controllers\LeaveBalanceController;
 use App\Modules\Leaves\Http\Controllers\LeaveCategoryController;
 use App\Modules\Leaves\Http\Controllers\LeavePolicyController;
 use App\Modules\Location\Http\Controllers\BranchController;
-use App\Modules\Location\Http\Controllers\ScheduleController;
 use App\Modules\Payroll\Http\Controllers\PayrollController;
 use App\Modules\Projects\Http\Controllers\ProjectController;
 use App\Modules\SalaryGrades\Http\Controllers\SalaryGradeController;
+use App\Modules\Schedules\Http\Controllers\ScheduleController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Teams\Http\Controllers\TeamController;
 use App\Modules\Users\Http\Controllers\PermissionController;
@@ -316,6 +316,8 @@ Route::middleware(['auth', 'portal.access'])->group(function (): void {
 
         Route::prefix('schedule')->name('schedule.')->group(function (): void {
             Route::get('/', [ScheduleController::class, 'index'])->middleware('permission:schedule.view')->name('index');
+            Route::get('/export/excel', [ScheduleController::class, 'exportExcel'])->middleware('permission:schedule.view')->name('export-excel');
+            Route::get('/export/pdf', [ScheduleController::class, 'exportPdf'])->middleware('permission:schedule.view')->name('export-pdf');
             Route::get('/create', [ScheduleController::class, 'create'])->middleware('permission:schedule.create')->name('create');
             Route::post('/', [ScheduleController::class, 'store'])->middleware('permission:schedule.create')->name('store');
             Route::get('/{schedule}/edit', [ScheduleController::class, 'edit'])->middleware('permission:schedule.update')->name('edit');

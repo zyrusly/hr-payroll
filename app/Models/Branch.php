@@ -19,6 +19,11 @@ class Branch extends Model
 
     public function schedules(): HasMany
     {
-        return $this->hasMany(Schedule::class);
+        return $this->hasMany(Schedule::class, 'default_branch_id');
+    }
+
+    public function scheduleDays(): HasMany
+    {
+        return $this->hasMany(ScheduleDay::class);
     }
 }
