@@ -19,9 +19,11 @@ use App\Modules\Leaves\Http\Controllers\LeaveApplicationController;
 use App\Modules\Leaves\Http\Controllers\LeaveBalanceController;
 use App\Modules\Leaves\Http\Controllers\LeaveCategoryController;
 use App\Modules\Leaves\Http\Controllers\LeavePolicyController;
+use App\Modules\Location\Http\Controllers\BranchController;
 use App\Modules\Payroll\Http\Controllers\PayrollController;
 use App\Modules\Projects\Http\Controllers\ProjectController;
 use App\Modules\SalaryGrades\Http\Controllers\SalaryGradeController;
+use App\Modules\Schedules\Http\Controllers\ScheduleController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Teams\Http\Controllers\TeamController;
 use App\Modules\Users\Http\Controllers\PermissionController;
@@ -300,6 +302,26 @@ Route::middleware(['auth', 'portal.access'])->group(function (): void {
             Route::post('/sync', [LeaveBalanceController::class, 'sync'])->middleware('permission:leave.manage-balances,leave.manage-quotas')->name('sync');
             Route::get('/{leaveBalance}/edit', [LeaveBalanceController::class, 'edit'])->middleware('permission:leave.manage-balances,leave.manage-quotas')->name('edit');
             Route::put('/{leaveBalance}', [LeaveBalanceController::class, 'update'])->middleware('permission:leave.manage-balances,leave.manage-quotas')->name('update');
+        });
+
+        Route::prefix('branch')->name('branch.')->group(function (): void {
+            Route::get('/', [BranchController::class, 'index'])->middleware('permission:branch.view')->name('index');
+            Route::get('/create', [BranchController::class, 'create'])->middleware('permission:branch.create')->name('create');
+            Route::post('/', [BranchController::class, 'store'])->middleware('permission:branch.create')->name('store');
+            Route::get('/{branch}/edit', [BranchController::class, 'edit'])->middleware('permission:branch.update')->name('edit');
+            Route::put('/{branch}', [BranchController::class, 'update'])->middleware('permission:branch.update')->name('update');
+            Route::delete('/{branch}', [BranchController::class, 'destroy'])->middleware('permission:branch.delete')->name('destroy');
+        });
+
+        Route::prefix('schedule')->name('schedule.')->group(function (): void {
+            Route::get('/', [ScheduleController::class, 'index'])->middleware('permission:schedule.view')->name('index');
+            Route::get('/export/excel', [ScheduleController::class, 'exportExcel'])->middleware('permission:schedule.view')->name('export-excel');
+            Route::get('/export/pdf', [ScheduleController::class, 'exportPdf'])->middleware('permission:schedule.view')->name('export-pdf');
+            Route::get('/create', [ScheduleController::class, 'create'])->middleware('permission:schedule.create')->name('create');
+            Route::post('/', [ScheduleController::class, 'store'])->middleware('permission:schedule.create')->name('store');
+            Route::get('/{schedule}/edit', [ScheduleController::class, 'edit'])->middleware('permission:schedule.update')->name('edit');
+            Route::put('/{schedule}', [ScheduleController::class, 'update'])->middleware('permission:schedule.update')->name('update');
+            Route::delete('/{schedule}', [ScheduleController::class, 'destroy'])->middleware('permission:schedule.delete')->name('destroy');
         });
 
         Route::prefix('users')->name('users.')->group(function (): void {
